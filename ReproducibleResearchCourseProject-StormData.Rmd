@@ -1,0 +1,110 @@
+---
+title: "Reproducible Research Course Project/Storm Data"
+author: "ludimila"
+date: "05/11/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+## **1 - Synopsis** 
+
+The basic goal of this assignment is to explore the NOAA Storm Database and answer some basic questions about severe weather events. You must use the database to answer the questions below and show the code for your entire analysis.
+
+Questions
+Your data analysis must address the following questions:
+
+- Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+- Across the United States, which types of events have the greatest economic consequences?
+
+## **2 - Data Processing**
+```{r, echo = TRUE}
+
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(R.utils)
+
+if(!file.exists("stormData.csv.bz2")) {
+  download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",
+                destfile = "stormData.csv.bz2", method = "curl")
+}
+
+
+stormDATA <- read.csv(bzfile("stormData.csv.bz2"), sep = ",", header = T)
+
+```
+## **3 - Results**
+
+## **3.1 - Across the United States, which types of events are most harmful with respect to population health?**
+```{r, echo = TRUE}
+
+fatalitiesDATA <- aggregate(stormDATA$FATALITIES, by=list(EVTYPE=stormDATA$EVTYPE), FUN=sum)
+fDATA <- head(fatalitiesDATA[order(-fatalitiesDATA$x),])
+
+injuriesDATA <- aggregate(stormDATA$INJURIES, by=list(EVTYPE=stormDATA$EVTYPE), FUN=sum)
+iDATA <- head(injuriesDATA[order(-injuriesDATA$x),])
+
+# Merging Data
+fDATA$HarmfulTypes <- "Fatalities"
+iDATA$HarmfulTypes <- "Injuries"
+mostHarm <- rbind(fDATA, iDATA)
+print(mostHarm)
+```
+## **Plot below shows the results of the analysis**
+```{r, echo = TRUE}
+
+plot1 <- ggplot(mostHarm, aes(EVTYPE,x, fill = HarmfulTypes)) + geom_bar(position = "dodge", stat = "identity")+
+  labs(title = " Harmful Events to Population Health", x = "Event Type", y = "Count") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+print(plot1)
+```
+
+## **3.2 - Across the United States, which types of events have the greatest economic consequences?** 
+```{r, echo = TRUE}
+
+unique(stormDATA$PROPDMGEXP)
+
+unique(stormDATA$CROPDMGEXP)
+
+PROPDMG <- mapvalues(stormDATA$PROPDMGEXP,
+                         c("K","M","", "B","m","+","0","5","6","?","4","2","3","h","7","H","-","1","8"), 
+                         c(1e3,1e6, 1, 1e9,1e6,  1,  1,1e5,1e6,  1,1e4,1e2,1e3,  1,1e7,1e2,  1, 10,1e8))
+
+CROPDMG <- mapvalues(stormDATA$CROPDMGEXP,
+                         c("","M","K","m","B","?","0","k","2"),
+                         c( 1,1e6,1e3,1e6,1e9,1,1,1e3,1e2))
+
+stormDATA$PROPTOTALDMG <- as.numeric(PROPDMG) * stormDATA$PROPDMG
+stormDATA$CROPTOTALDMG <- as.numeric(CROPDMG) * stormDATA$CROPDMG
+
+
+stormDATA$TOTALDMG <- stormDATA$PROPTOTALDMG + stormDATA$CROPTOTALDMG
+
+PROPDMG <- aggregate(stormDATA$PROPTOTALDMG, by=list(EVTYPE=stormDATA$EVTYPE), FUN=sum)
+PROPDMG <- head(PROPDMG[order(-PROPDMG$x),])
+
+
+CROPDMG <-aggregate(stormDATA$CROPTOTALDMG, by=list(EVTYPE=stormDATA$EVTYPE), FUN=sum)
+CROPDMG <- head(CROPDMG[order(-CROPDMG$x),])
+
+
+TOTALDMG <-aggregate(stormDATA$TOTALDMG, by=list(EVTYPE=stormDATA$EVTYPE), FUN=sum)
+TOTALDMG <- head(TOTALDMG[order(-TOTALDMG$x),])
+
+# Merging Data
+PROPDMG$Type <- "Property Damage Caused"
+CROPDMG$Type <- "Crop Damage Caused"
+TOTALDMG$Type <- "Total Damage"
+mostHarmECO <- rbind(PROPDMG, CROPDMG, TOTALDMG)
+print(mostHarmECO)
+```
+## **Plot below shows the results of the analysis**
+```{r, echo = TRUE}
+
+plot2 <- ggplot(mostHarmECO, aes(EVTYPE,x), grpop=type) + geom_bar(aes(colour=Type, fill= Type),position = "dodge",stat="identity")+
+  labs(title = "Economically Harmful Events", x = "Event Type", y = "Count in $") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+  print(plot2)
+
+```
